@@ -1,0 +1,46 @@
+resources:
+  - name: reqProcGitRepo
+    type: gitRepo
+    repoPath: bharath92/kermit-u16reqproc
+    configuration:
+      integrationName: githubBharath
+      buildOn:
+        commit: true
+    initialVersion:
+      sha: master
+
+pipelines:
+  - name: reqProcBuilder
+    steps:
+      - name: buildx8664u16ReqprocImage
+        type: bash
+        setup:
+          environmentVariables:
+            normal:
+              architecture: x86_64
+              os: Ubuntu_16.04
+              imageName: drydock/kermit-u16reqproc:master
+              release: master
+          runtime:
+            type: image
+            image:
+              custom:
+                name: drydock/u16microbase
+                tag: master
+        requires:
+          resources:
+            - reqProcGitRepo
+          integrations:
+            - dockerBharath
+        execution:
+          onExecute:
+            - pushd "$res_reqProcGitRepo_resourcePath"/gitRepo
+            - sed -i "s/{{%TAG%}}/$release/g" ./image/$architecture/$os/Dockerfile
+            - docker build -t=$imageName -f=image/$architecture/$os/Dockerfile .
+            - docker login -u $int_dockerBharath_username -p $int_dockerBharath_password
+            - docker push $imageName
+            - popd
+          onSuccess:
+            - echo "$imageName built & pushed successfully"
+          onFailure:
+            - echo "Failed to build image $imageName"
